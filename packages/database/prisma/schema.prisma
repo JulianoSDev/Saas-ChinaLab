@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  discordId  String   @unique @map("discord_id")
+  xp         Int      @default(0)
+  level      Int      @default(1)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  hauls      Haul[]
+  reviews    Review[]
+  clickLogs  ClickLog[]
+  referrals  Referral[] @relation("inviter")
+  referredBy Referral[] @relation("invited")
+
+  @@map("users")
+}
+
+model Haul {
+  id        Int        @id @default(autoincrement())
+  userId    Int        @map("user_id")
+  name      String
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  user      User       @relation(fields: [userId], references: [id])
+  items     HaulItem[]
+
+  @@map("hauls")
+}
+
+model HaulItem {
+  id           Int    @id @default(autoincrement())
+  haulId       Int    @map("haul_id")
+  productLink  String @map("product_link")
+  price        Float
+  weightGrams  Int    @map("weight_grams")
+  seller       String?
+
+  haul         Haul   @relation(fields: [haulId], references: [id])
+
+  @@map("haul_items")
+}
+
+model Find {
+  id        Int      @id @default(autoincrement())
+  name      String
+  link      String
+  price     Float
+  category  String
+  seller    String?
+  imageUrl  String?  @map("image_url")
+  clicks    Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("finds")
+}
+
+model Review {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  productLink String   @map("product_link")
+  rating      Int
+  comment     String?
+  imageUrl    String?  @map("image_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("reviews")
+}
+
+model Seller {
+  id            Int     @id @default(autoincrement())
+  sellerName    String  @unique @map("seller_name")
+  averageRating Float   @default(0) @map("average_rating")
+  commonIssues  String? @map("common_issues")
+
+  @@map("sellers")
+}
+
+model BatchProduct {
+  id          Int           @id @default(autoincrement())
+  productName String        @map("product_name")
+  bestBatch   String?       @map("best_batch")
+  rating      Float         @default(0)
+  avgPrice    Float?        @map("avg_price")
+  notes       String?
+
+  options     BatchOption[]
+
+  @@map("batch_products")
+}
+
+model BatchOption {
+  id            Int          @id @default(autoincrement())
+  productId     Int          @map("product_id")
+  batchName     String       @map("batch_name")
+  rating        Float        @default(0)
+  commonIssues  String?      @map("common_issues")
+
+  product       BatchProduct @relation(fields: [productId], references: [id])
+
+  @@map("batch_options")
+}
+
+model FreightCache {
+  id             Int      @id @default(autoincrement())
+  cacheKey       String   @unique @map("cache_key")
+  result         String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("freight_cache")
+}
+
+model ClickLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  productLink String   @map("product_link")
+  timestamp   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@map("click_logs")
+}
+
+model Referral {
+  id        Int      @id @default(autoincrement())
+  inviterId Int      @map("inviter_id")
+  invitedId Int      @map("invited_id")
+  timestamp DateTime @default(now())
+
+  inviter   User     @relation("inviter", fields: [inviterId], references: [id])
+  invited   User     @relation("invited", fields: [invitedId], references: [id])
+
+  @@map("referrals")
+}

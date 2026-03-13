@@ -1,0 +1,22 @@
+{
+  "name": "@chinalab/services",
+  "version": "1.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@chinalab/clients": "workspace:*",
+    "@chinalab/config": "workspace:*",
+    "@chinalab/database": "workspace:*",
+    "@chinalab/utils": "workspace:*",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/node-cache": "^4.2.5",
+    "typescript": "^5.6.0"
+  }
+}
