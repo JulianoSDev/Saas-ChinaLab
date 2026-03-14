@@ -12,6 +12,7 @@
     "@chinalab/config": "workspace:*",
     "@chinalab/database": "workspace:*",
     "@chinalab/utils": "workspace:*",
+    "@prisma/client": "^5.22.0",
     "node-cache": "^5.1.2"
   },
   "devDependencies": {

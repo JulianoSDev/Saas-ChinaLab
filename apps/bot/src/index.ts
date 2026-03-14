@@ -1,4 +1,3 @@
-// IMPORTANTE: carregar .env ANTES de qualquer import de @chinalab
 import path from 'path';
 import { configDotenv } from 'dotenv';
 
@@ -8,27 +7,24 @@ configDotenv({ path: path.resolve(process.cwd(), '../../.env') });
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { createLogger } from '@chinalab/utils';
 import { freteCommand } from './commands/frete';
+import { haulCommand } from './commands/haul';
 
 const log = createLogger('Bot');
 
-const DISCORD_TOKEN = process.env.DISCORD_TOKEN!;
+const DISCORD_TOKEN     = process.env.DISCORD_TOKEN!;
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
-const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID!;
+const DISCORD_GUILD_ID  = process.env.DISCORD_GUILD_ID!;
 
 if (!DISCORD_TOKEN || !DISCORD_CLIENT_ID || !DISCORD_GUILD_ID) {
-  console.error('❌ DISCORD_TOKEN, DISCORD_CLIENT_ID ou DISCORD_GUILD_ID não encontrados no .env');
+  console.error('❌ Variáveis de ambiente não encontradas no .env');
   process.exit(1);
 }
 
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
-const commands = [freteCommand];
+const commands = [freteCommand, haulCommand];
 
 client.once('clientReady', async (c) => {
   log.info(`✅ Online como: ${c.user.tag}`);
@@ -49,11 +45,8 @@ client.on('interactionCreate', async (interaction) => {
   } catch (err) {
     log.error({ err, command: interaction.commandName }, 'Erro ao executar comando');
     const msg = { content: '❌ Erro interno. Tente novamente.', ephemeral: true };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(msg);
-    } else {
-      await interaction.reply(msg);
-    }
+    if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
+    else await interaction.reply(msg);
   }
 });
 
