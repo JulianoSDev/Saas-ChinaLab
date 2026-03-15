@@ -8,6 +8,7 @@ import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { createLogger } from '@chinalab/utils';
 import { freteCommand } from './commands/frete';
 import { haulCommand } from './commands/haul';
+import { quantoCustaCommand } from './commands/quantoCusta';
 
 const log = createLogger('Bot');
 
@@ -24,7 +25,7 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
 });
 
-const commands = [freteCommand, haulCommand];
+const commands = [freteCommand, haulCommand, quantoCustaCommand];
 
 client.once('clientReady', async (c) => {
   log.info(`✅ Online como: ${c.user.tag}`);

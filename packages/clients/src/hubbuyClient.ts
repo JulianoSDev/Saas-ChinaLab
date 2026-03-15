@@ -4,7 +4,8 @@ import { createLogger, FreightError } from '@chinalab/utils';
 const log = createLogger('HubbuyClient');
 
 const BASE_URL = 'https://api.hubbuycn.com/api';
-const HEADERS: Record<string, string> = {
+// Headers padrão para frete (Brasil)
+export const HUBBUY_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
   'Lang': 'en-us',
   'Terminal': 'pc',
@@ -15,23 +16,26 @@ const HEADERS: Record<string, string> = {
   'Referer': 'https://www.hubbuycn.com/',
 };
 
+// Headers para recharge/cotação — igual ao browser (Country: US, Currency: CNY)
+const RECHARGE_HEADERS: Record<string, string> = {
+  'Content-Type': 'application/json',
+  'Lang': 'en-us',
+  'Terminal': 'pc',
+  'Currency': 'CNY',
+  'Country': 'US',
+  'Invitation-Code': '',
+  'Origin': 'https://www.hubbuycn.com',
+  'Referer': 'https://www.hubbuycn.com/',
+};
+
 interface LoginResponse {
   code: number;
-  data: { data: { token: string } };
-}
-
-interface FreightPayload {
-  destination_country_id: number;
-  weight: number;
-  category_ids: string[];
-  dimensions: { length: number; width: number; height: number };
-  volume_weight: number;
+  data: { token: string };
 }
 
 let authToken: string | null = null;
 let isRefreshingToken = false;
 let loginPromise: Promise<string> | null = null;
-
 let nextAvailableTime = Date.now();
 
 async function enforceRateLimit(): Promise<void> {
@@ -39,9 +43,7 @@ async function enforceRateLimit(): Promise<void> {
   const now = Date.now();
   const waitMs = Math.max(0, nextAvailableTime - now);
   nextAvailableTime = now + waitMs + rateMs;
-  if (waitMs > 0) {
-    await new Promise(resolve => setTimeout(resolve, waitMs));
-  }
+  if (waitMs > 0) await new Promise(resolve => setTimeout(resolve, waitMs));
 }
 
 async function login(): Promise<string> {
@@ -49,7 +51,7 @@ async function login(): Promise<string> {
 
   isRefreshingToken = true;
   loginPromise = (async () => {
-    const email = process.env.HUBBUY_EMAIL!;
+    const email    = process.env.HUBBUY_EMAIL!;
     const password = process.env.HUBBUY_PASSWORD!;
 
     if (!email || !password) {
@@ -57,24 +59,16 @@ async function login(): Promise<string> {
     }
 
     const passwordMd5 = crypto.createHash('md5').update(password).digest('hex');
-
     await enforceRateLimit();
 
-    const res = await fetch(`${BASE_URL}/user/loginByVer`, {
+    const res  = await fetch(`${BASE_URL}/user/loginByVer`, {
       method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify({
-        email,
-        password: passwordMd5,
-        invitation_type: 'code',
-      }),
+      headers: HUBBUY_HEADERS,
+      body: JSON.stringify({ email, password: passwordMd5, invitation_type: 'code' }),
     });
 
     const data = (await res.json()) as LoginResponse;
-
-    if (data.code !== 200) {
-      throw new FreightError(`Login HubbuyCN falhou: ${JSON.stringify(data)}`);
-    }
+    if (data.code !== 200) throw new FreightError(`Login HubbuyCN falhou: ${JSON.stringify(data)}`);
 
     const token = (data.data as any).token;
     authToken = token;
@@ -88,9 +82,15 @@ async function login(): Promise<string> {
   return loginPromise;
 }
 
-async function getToken(): Promise<string> {
+// ─── API pública ──────────────────────────────────────────────────────────────
+
+export async function getToken(): Promise<string> {
   if (authToken) return authToken;
   return login();
+}
+
+export function invalidateToken(): void {
+  authToken = null;
 }
 
 export async function calculateFreight(
@@ -99,7 +99,7 @@ export async function calculateFreight(
 ): Promise<unknown> {
   const token = await getToken();
 
-  const payload: FreightPayload = {
+  const payload = {
     destination_country_id: 253,
     weight: weightGrams,
     category_ids: categoryIds,
@@ -109,9 +109,9 @@ export async function calculateFreight(
 
   await enforceRateLimit();
 
-  const res = await fetch(`${BASE_URL}/Delivery/calculateDeliveryFee`, {
+  const res  = await fetch(`${BASE_URL}/Delivery/calculateDeliveryFee`, {
     method: 'POST',
-    headers: { ...HEADERS, Token: token },
+    headers: { ...HUBBUY_HEADERS, Token: token },
     body: JSON.stringify(payload),
   });
 
@@ -119,16 +119,59 @@ export async function calculateFreight(
 
   if (data.code === 101006) {
     log.warn('Token expirado, renovando...');
-    authToken = null;
+    invalidateToken();
     const newToken = await login();
     await enforceRateLimit();
     const retry = await fetch(`${BASE_URL}/Delivery/calculateDeliveryFee`, {
       method: 'POST',
-      headers: { ...HEADERS, Token: newToken },
+      headers: { ...HUBBUY_HEADERS, Token: newToken },
       body: JSON.stringify(payload),
     });
     return (await retry.json() as { data: unknown }).data;
   }
 
+  return data.data;
+}
+
+export async function createRechargeTransaction(amountCny: number): Promise<string> {
+  const token = await getToken();
+  await enforceRateLimit();
+
+  const res  = await fetch(`${BASE_URL}/Wallet/recharge`, {
+    method: 'POST',
+    headers: { ...RECHARGE_HEADERS, Token: token },
+    body: JSON.stringify({ amount: amountCny }),
+  });
+
+  const data = await res.json() as { code: number; data: { trans_no: string } };
+
+  if (data.code === 101006) {
+    invalidateToken();
+    const newToken = await login();
+    await enforceRateLimit();
+    const retry = await fetch(`${BASE_URL}/Wallet/recharge`, {
+      method: 'POST',
+      headers: { ...RECHARGE_HEADERS, Token: newToken },
+      body: JSON.stringify({ amount: amountCny }),
+    });
+    const retryData = await retry.json() as { code: number; data: { trans_no: string } };
+    if (retryData.code !== 200) throw new FreightError(`Recharge falhou: ${JSON.stringify(retryData)}`);
+    return retryData.data.trans_no;
+  }
+
+  if (data.code !== 200) throw new FreightError(`Recharge falhou: ${JSON.stringify(data)}`);
+  return data.data.trans_no;
+}
+
+export async function getTransInfo(transNo: string): Promise<unknown> {
+  const token = await getToken();
+  await enforceRateLimit();
+
+  const res  = await fetch(`${BASE_URL}/Pay/getTransInfo?trans_no=${transNo}`, {
+    headers: { ...RECHARGE_HEADERS, Token: token },
+  });
+
+  const data = await res.json() as { code: number; data: unknown };
+  if (data.code !== 200) throw new FreightError(`getTransInfo falhou: ${JSON.stringify(data)}`);
   return data.data;
 }
