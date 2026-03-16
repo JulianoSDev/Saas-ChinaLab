@@ -21,15 +21,24 @@ export interface PaymentMethod {
 }
 
 export interface ExchangeRateQuote {
-  cnyAmount:     number;
-  baseBrlAmount: number;
-  cnyToBrl:      number;
-  transNo:       string;
-  capturedAt:    string;
-  expiresAt:     string;
-  source:        ExchangeRateSource;
-  confidence:    'high' | 'medium' | 'low';
-  methods:       PaymentMethod[];
+  cnyAmount:          number;
+  baseBrlAmount:      number;
+  effectiveBrlAmount: number;
+  baseRate:           number; // BRL por CNY (sem taxa)
+  effectiveRate:      number; // BRL por CNY (com taxa BRS-PIX)
+  displayRate:        number; // CNY por BRL (1 / effectiveRate) — para exibição
+  transNo:            string;
+  capturedAt:         string;
+  expiresAt:          string;
+  source:             ExchangeRateSource;
+  confidence:         'high' | 'medium' | 'low';
+  primaryMethod: {
+    payType:     string;
+    payTypeName: string;
+    feeAmount:   number;
+    totalAmount: number;
+  };
+  methods: PaymentMethod[];
 }
 
 let cachedQuote: ExchangeRateQuote | null = null;
@@ -46,18 +55,17 @@ function isStale(): boolean {
 }
 
 async function fetchLiveRate(): Promise<ExchangeRateQuote> {
-  const transNo  = await createRechargeTransaction(QUOTE_AMOUNT);
+  const transNo = await createRechargeTransaction(QUOTE_AMOUNT);
   log.debug({ transNo }, 'Trans criada para cotação');
 
   const info     = await getTransInfo(transNo) as any;
   const payTypes: any[] = info.pay_type ?? [];
 
-  // Filtrar APENAS métodos BRL — ignorar CNY e USD
+  // Filtrar apenas métodos BRL
   const brlMethods = payTypes.filter(p => {
     const isBrl = p.default_currency === 'BRL' ||
       (Array.isArray(p.currency) && p.currency.includes('BRL'));
-    const hasBrlAmount = p.handling_fee_info?.amount > 0;
-    return isBrl && hasBrlAmount;
+    return isBrl && p.trans_amount > 0;
   });
 
   if (brlMethods.length === 0) throw new Error('Nenhum método BRL encontrado');
@@ -66,41 +74,55 @@ async function fetchLiveRate(): Promise<ExchangeRateQuote> {
   const primary =
     brlMethods.find(p => p.pay_channel === 'brsintl') ??
     brlMethods.find(p => p.pay_type_name?.toLowerCase().includes('pix')) ??
-    brlMethods.find(p => p.pay_type?.toLowerCase().includes('pix')) ??
     brlMethods[0];
 
-  const baseAmount = primary.trans_amount as number; // trans_amount = valor BRL sem taxa
-  const cnyToBrl   = baseAmount / QUOTE_AMOUNT;
+  const baseBrlAmount      = primary.trans_amount as number;
+  const feeAmount          = primary.handling_fee_info?.original_fee ?? 0;
+  const effectiveBrlAmount = primary.handling_fee_info?.total_amount ?? baseBrlAmount + feeAmount;
+
+  const baseRate      = baseBrlAmount      / QUOTE_AMOUNT;
+  const effectiveRate = effectiveBrlAmount / QUOTE_AMOUNT;
+  const displayRate   = 1 / effectiveRate;
 
   log.debug({
-    cnyAmount: QUOTE_AMOUNT,
-    selectedMethod: primary.pay_type_name,
-    defaultCurrency: primary.default_currency,
-    currency: primary.currency,
-    transAmount: primary.trans_amount,
-    cnyToBrl,
-  }, 'Método BRL selecionado para taxa');
+    method: primary.pay_type_name,
+    baseBrlAmount,
+    feeAmount,
+    effectiveBrlAmount,
+    baseRate,
+    effectiveRate,
+    displayRate,
+  }, 'Taxa calculada');
 
   const methods: PaymentMethod[] = brlMethods.map(p => ({
     payType:     p.pay_type,
     payTypeName: p.pay_type_name,
-    baseAmount:  p.handling_fee_info.amount,
-    feeAmount:   p.handling_fee_info.original_fee,
-    totalAmount: p.handling_fee_info.total_amount,
+    baseAmount:  p.trans_amount,
+    feeAmount:   p.handling_fee_info?.original_fee ?? 0,
+    totalAmount: p.handling_fee_info?.total_amount ?? p.trans_amount,
   }));
 
-  const now      = new Date();
-  const expires  = new Date(now.getTime() + CACHE_FRESH_MS);
+  const now     = new Date();
+  const expires = new Date(now.getTime() + CACHE_FRESH_MS);
 
   return {
     cnyAmount: QUOTE_AMOUNT,
-    baseBrlAmount: baseAmount,
-    cnyToBrl,
+    baseBrlAmount,
+    effectiveBrlAmount,
+    baseRate,
+    effectiveRate,
+    displayRate,
     transNo,
     capturedAt:  now.toISOString(),
     expiresAt:   expires.toISOString(),
     source:      'hubbuy_recharge_live',
     confidence:  'high',
+    primaryMethod: {
+      payType:     primary.pay_type,
+      payTypeName: primary.pay_type_name,
+      feeAmount,
+      totalAmount: effectiveBrlAmount,
+    },
     methods,
   };
 }
@@ -115,7 +137,7 @@ export async function getExchangeRate(): Promise<ExchangeRateQuote> {
     const quote    = await fetchLiveRate();
     cachedQuote    = quote;
     cacheTimestamp = Date.now();
-    log.info({ cnyToBrl: quote.cnyToBrl }, 'Taxa HubbuyCN atualizada');
+    log.info({ effectiveRate: quote.effectiveRate, displayRate: quote.displayRate }, 'Taxa HubbuyCN atualizada');
     return quote;
   } catch (err) {
     log.warn({ err }, 'Falha ao buscar taxa live');
@@ -128,9 +150,20 @@ export async function getExchangeRate(): Promise<ExchangeRateQuote> {
 
   log.warn('Usando taxa manual fallback');
   const now = new Date();
+  const fallbackEffective = 0.9011;
   return {
-    cnyAmount: QUOTE_AMOUNT, baseBrlAmount: 89, cnyToBrl: 0.89,
-    transNo: 'fallback', capturedAt: now.toISOString(), expiresAt: now.toISOString(),
-    source: 'manual_fallback', confidence: 'low', methods: [],
+    cnyAmount: QUOTE_AMOUNT,
+    baseBrlAmount:      89.22,
+    effectiveBrlAmount: 90.11,
+    baseRate:      0.8922,
+    effectiveRate: fallbackEffective,
+    displayRate:   1 / fallbackEffective,
+    transNo:    'fallback',
+    capturedAt: now.toISOString(),
+    expiresAt:  now.toISOString(),
+    source:     'manual_fallback',
+    confidence: 'low',
+    primaryMethod: { payType: 'fallback', payTypeName: 'BRS-PIX (estimado)', feeAmount: 0, totalAmount: 90.11 },
+    methods: [],
   };
 }

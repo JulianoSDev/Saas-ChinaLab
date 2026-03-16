@@ -11,7 +11,7 @@ const cooldown = new NodeCache({ stdTTL: 5 });
 
 const COLOR       = 0xF4A42C;
 const COLOR_ERROR = 0xED4245;
-const FOOTER      = { text: 'ChinaLab • Estimativa não oficial · Valores sujeitos a variação' };
+const FOOTER      = { text: 'ChinaLab • Estimativa não oficial · Frete não inclui taxas futuras de pagamento' };
 
 function embed() {
   return new EmbedBuilder().setColor(COLOR).setFooter(FOOTER).setTimestamp();
@@ -56,25 +56,61 @@ export const quantoCustaCommand = {
     try {
       const estimate = await estimateCost({ productCny, shippingCny });
 
+      // Produto: base (sem fee) e via BRS-PIX (com fee)
+      const productBase = productCny * estimate.effectiveRate / (1 + (estimate.primaryMethod.feeAmount / (productCny * estimate.effectiveRate / (1 + 0.01))));
+      const productBase2 = productCny * (estimate.effectiveRate / (1 + estimate.primaryMethod.feeAmount / estimate.primaryMethod.totalAmount));
+      const feeRate      = estimate.primaryMethod.feeAmount / estimate.primaryMethod.totalAmount;
+      const productBaseR = productCny * estimate.effectiveRate * (1 - feeRate);
+      const productBRS   = estimate.productBrl;
+
+      // Frete: só estimado com baseRate (sem fee)
+      const shippingBrl = shippingCny * (estimate.effectiveRate / (1 + feeRate));
+
+      // Total: produto via BRS-PIX + frete estimado
+      const totalBrl = productBRS + shippingBrl;
+
       const e = embed()
         .setTitle('📊 Estimativa de Custo')
-        .setDescription('Conversão baseada na taxa atual da HubbuyCN via Pix.')
+        .setDescription(`Cotação via **${estimate.primaryMethod.payTypeName}** · Fonte: ${sourceLabel(estimate.source)}`)
         .addFields(
-          { name: '🏷️ Produto',        value: `\`¥${productCny.toFixed(2)}\` → **\`R$${estimate.productBrl.toFixed(2)}\`**`,  inline: false },
+          {
+            name:  '🏷️ Produto',
+            value: `Base HubbuyCN: \`R$${productBaseR.toFixed(2)}\`\nVia BRS-PIX: **\`R$${productBRS.toFixed(2)}\`**`,
+            inline: false,
+          },
           ...(shippingCny > 0 ? [{
-            name: '✈️ Frete',           value: `\`¥${shippingCny.toFixed(2)}\` → **\`R$${estimate.shippingBrl.toFixed(2)}\`**`, inline: false,
+            name:  '✈️ Frete estimado',
+            value: `\`¥${shippingCny.toFixed(2)}\` → \`R$${shippingBrl.toFixed(2)}\` *(sem taxa de pagamento)*`,
+            inline: false,
           }] : []),
-          { name: '💰 Total Estimado',  value: `\`¥${estimate.totalCny.toFixed(2)}\` → **\`R$${estimate.totalBrl.toFixed(2)}\`**`, inline: false },
-          { name: '📈 Cotação',         value: `\`R$${estimate.cnyToBrl.toFixed(4)}\` por ¥1`,  inline: true },
-          { name: '🔍 Fonte',           value: sourceLabel(estimate.source),                    inline: true },
-          { name: '⚡ Confiança',       value: confidenceLabel(estimate.confidence),             inline: false },
+          {
+            name:  '💰 Total Estimado',
+            value: `**\`R$${totalBrl.toFixed(2)}\`** *(produto via BRS-PIX + frete estimado)*`,
+            inline: false,
+          },
+          {
+            name:  '📈 Cotação BRS-PIX',
+            value: `\`¥${estimate.displayRate.toFixed(4)}\` por R$1`,
+            inline: true,
+          },
+          {
+            name:  '⚡ Confiança',
+            value: confidenceLabel(estimate.confidence),
+            inline: true,
+          },
         );
 
       await interaction.editReply({ embeds: [e] });
 
     } catch (err: any) {
       await interaction.editReply({
-        embeds: [new EmbedBuilder().setColor(COLOR_ERROR).setDescription(`❌ ${err.message}`).setFooter(FOOTER).setTimestamp()],
+        embeds: [
+          new EmbedBuilder()
+            .setColor(COLOR_ERROR)
+            .setDescription(`❌ ${err.message}`)
+            .setFooter(FOOTER)
+            .setTimestamp(),
+        ],
       });
     }
   },

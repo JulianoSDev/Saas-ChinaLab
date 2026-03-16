@@ -6,10 +6,11 @@ configDotenv({ path: path.resolve(process.cwd(), '../../.env') });
 
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { createLogger } from '@chinalab/utils';
-import { freteCommand }      from './commands/frete';
-import { haulCommand }       from './commands/haul';
+import { freteCommand }       from './commands/frete';
+import { haulCommand }        from './commands/haul';
 import { quantoCustaCommand } from './commands/quantoCusta';
-import { handleLinkMessage } from './events/linkConverter';
+import { analisarCommand }    from './commands/analisar';
+import { handleLinkMessage }  from './events/linkConverter';
 
 const log = createLogger('Bot');
 
@@ -30,7 +31,7 @@ const client = new Client({
   ],
 });
 
-const commands = [freteCommand, haulCommand, quantoCustaCommand];
+const commands = [freteCommand, haulCommand, quantoCustaCommand, analisarCommand];
 
 client.once('clientReady', async (c) => {
   log.info(`✅ Online como: ${c.user.tag}`);
@@ -56,7 +57,6 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
-// ─── Link Converter ───────────────────────────────────────────────────────────
 client.on('messageCreate', async (message) => {
   try {
     await handleLinkMessage(message);
