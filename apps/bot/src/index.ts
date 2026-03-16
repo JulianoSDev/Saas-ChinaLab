@@ -6,9 +6,10 @@ configDotenv({ path: path.resolve(process.cwd(), '../../.env') });
 
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { createLogger } from '@chinalab/utils';
-import { freteCommand } from './commands/frete';
-import { haulCommand } from './commands/haul';
+import { freteCommand }      from './commands/frete';
+import { haulCommand }       from './commands/haul';
 import { quantoCustaCommand } from './commands/quantoCusta';
+import { handleLinkMessage } from './events/linkConverter';
 
 const log = createLogger('Bot');
 
@@ -22,7 +23,11 @@ if (!DISCORD_TOKEN || !DISCORD_CLIENT_ID || !DISCORD_GUILD_ID) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
 const commands = [freteCommand, haulCommand, quantoCustaCommand];
@@ -48,6 +53,15 @@ client.on('interactionCreate', async (interaction) => {
     const msg = { content: '❌ Erro interno. Tente novamente.', ephemeral: true };
     if (interaction.replied || interaction.deferred) await interaction.followUp(msg);
     else await interaction.reply(msg);
+  }
+});
+
+// ─── Link Converter ───────────────────────────────────────────────────────────
+client.on('messageCreate', async (message) => {
+  try {
+    await handleLinkMessage(message);
+  } catch (err) {
+    log.error({ err }, 'Erro no link converter');
   }
 });
 
