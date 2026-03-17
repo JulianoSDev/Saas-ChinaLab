@@ -6,11 +6,15 @@ configDotenv({ path: path.resolve(process.cwd(), '../../.env') });
 
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { createLogger } from '@chinalab/utils';
-import { freteCommand }       from './commands/frete';
-import { haulCommand }        from './commands/haul';
-import { quantoCustaCommand } from './commands/quantoCusta';
-import { analisarCommand }    from './commands/analisar';
-import { handleLinkMessage }  from './events/linkConverter';
+import { freteCommand }           from './commands/frete';
+import { haulCommand }            from './commands/haul';
+import { quantoCustaCommand }     from './commands/quantoCusta';
+import { analisarCommand }        from './commands/analisar';
+import { achadosCommand }         from './commands/achados';
+import { achadoCommand }          from './commands/achado';
+import { adminAchadosCommand }    from './commands/adminAchados';
+import { indicarAchadoCommand }   from './commands/indicarAchado';
+import { handleLinkMessage }      from './events/linkConverter';
 
 const log = createLogger('Bot');
 
@@ -31,7 +35,16 @@ const client = new Client({
   ],
 });
 
-const commands = [freteCommand, haulCommand, quantoCustaCommand, analisarCommand];
+const commands = [
+  freteCommand,
+  haulCommand,
+  quantoCustaCommand,
+  analisarCommand,
+  achadosCommand,
+  achadoCommand,
+  adminAchadosCommand,
+  indicarAchadoCommand,
+];
 
 client.once('clientReady', async (c) => {
   log.info(`✅ Online como: ${c.user.tag}`);

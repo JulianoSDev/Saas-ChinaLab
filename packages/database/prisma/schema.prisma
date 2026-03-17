@@ -59,6 +59,8 @@ model Find {
   clicks    Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 
+  sourceSuggestion FindSuggestion?
+
   @@map("finds")
 }
 
@@ -140,4 +142,26 @@ model Referral {
   invited   User     @relation("invited", fields: [invitedId], references: [id])
 
   @@map("referrals")
+}
+
+model FindSuggestion {
+  id              Int      @id @default(autoincrement())
+  discordId       String   @map("discord_id")
+  username        String
+  name            String
+  link            String
+  price           Float
+  category        String
+  seller          String?
+  imageUrl        String?  @map("image_url")
+  notes           String?
+  status          String   @default("pending") // pending | approved | rejected
+  reviewedBy      String?  @map("reviewed_by")
+  reviewedAt      DateTime? @map("reviewed_at")
+  publishedFindId Int?     @unique @map("published_find_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  publishedFind   Find?    @relation(fields: [publishedFindId], references: [id])
+
+  @@map("find_suggestions")
 }

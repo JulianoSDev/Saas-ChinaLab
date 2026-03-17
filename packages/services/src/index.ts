@@ -3,3 +3,4 @@ export * from './userService';
 export * from './haulService';
 export * from './exchangeRateService';
 export * from './costEstimateService';
+export * from './findsService';
