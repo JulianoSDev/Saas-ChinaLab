@@ -14,6 +14,13 @@ import { achadosCommand }         from './commands/achados';
 import { achadoCommand }          from './commands/achado';
 import { adminAchadosCommand }    from './commands/adminAchados';
 import { indicarAchadoCommand }   from './commands/indicarAchado';
+import { vendedorCommand }        from './commands/vendedor';
+import { watchlistCommand }       from './commands/watchlist';
+import { notificacoesCommand }    from './commands/notificacoes';
+import { acompanharBuscaCommand } from './commands/acompanharBusca';
+import { compararCommand }        from './commands/comparar';
+import { trendingCommand }        from './commands/trending';
+import { reviewCommand }          from './commands/review';
 import { handleLinkMessage }      from './events/linkConverter';
 
 const log = createLogger('Bot');
@@ -44,6 +51,13 @@ const commands = [
   achadoCommand,
   adminAchadosCommand,
   indicarAchadoCommand,
+  vendedorCommand,
+  watchlistCommand,
+  notificacoesCommand,
+  acompanharBuscaCommand,
+  compararCommand,
+  trendingCommand,
+  reviewCommand,
 ];
 
 client.once('clientReady', async (c) => {

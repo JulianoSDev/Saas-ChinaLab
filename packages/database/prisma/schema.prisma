@@ -19,6 +19,10 @@ model User {
   clickLogs  ClickLog[]
   referrals  Referral[] @relation("inviter")
   referredBy Referral[] @relation("invited")
+  watches    WatchSubscription[]
+  savedSearches SavedSearch[]
+  watchlistEvents WatchlistEvent[]
+  notifications NotificationEvent[]
 
   @@map("users")
 }
@@ -67,14 +71,17 @@ model Find {
 model Review {
   id          Int      @id @default(autoincrement())
   userId      Int      @map("user_id")
-  productLink String   @map("product_link")
+  targetType  String   @default("link") @map("target_type")
+  targetKey   String   @map("product_link")
   rating      Int
   comment     String?
+  experienceTag String? @map("experience_tag")
   imageUrl    String?  @map("image_url")
   createdAt   DateTime @default(now()) @map("created_at")
 
   user        User     @relation(fields: [userId], references: [id])
 
+  @@index([targetType, targetKey])
   @@map("reviews")
 }
 
@@ -142,6 +149,66 @@ model Referral {
   invited   User     @relation("invited", fields: [invitedId], references: [id])
 
   @@map("referrals")
+}
+
+model WatchSubscription {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  targetType   String   @map("target_type") // item | seller | link
+  targetKey    String   @map("target_key")
+  displayLabel String   @map("display_label")
+  createdAt    DateTime @default(now()) @map("created_at")
+  lastLinkCheckAt DateTime? @map("last_link_check_at")
+  lastLinkCheckStatus String? @map("last_link_check_status") // ok | problematic
+  lastLinkProblemReason String? @map("last_link_problem_reason")
+  lastLinkStatusChangedAt DateTime? @map("last_link_status_changed_at")
+  lastProblemNotifiedAt DateTime? @map("last_problem_notified_at")
+
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, targetType, targetKey])
+  @@map("watch_subscriptions")
+}
+
+model SavedSearch {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  query     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, query])
+  @@map("saved_searches")
+}
+
+model WatchlistEvent {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  eventName  String   @map("event_name")
+  targetType String?  @map("target_type")
+  detail     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@map("watchlist_events")
+}
+
+model NotificationEvent {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  type      String
+  title     String
+  message   String
+  payload   String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("notification_events")
 }
 
 model FindSuggestion {
